@@ -5,12 +5,14 @@ use crab_nbt::{Nbt, NbtTag};
 use enum_utils::TryFromRepr;
 use flate2::bufread::{GzDecoder, ZlibDecoder};
 
+use crate::chunks::heightmaps::{Heightmap, HeightmapType};
 use crate::error::ChunkLoadError;
 use crate::error::ChunkLoadError::*;
 use crate::chunks::sections::ChunkSection;
 
 pub mod sections;
 pub mod iterators;
+pub mod heightmaps;
 mod utils;
 
 #[derive(Debug, TryFromRepr)]
@@ -23,6 +25,7 @@ pub enum CompressionFormat {
     // There could be Custom = 127 here, but we couldn't support it anyway
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum ChunkStatus {
     Empty,
     StructureStarts, StructureReferences,
@@ -58,8 +61,12 @@ impl TryFrom<&str> for ChunkStatus {
     }
 }
 
+const HEIGHTMAPS_KEY: &'static str = "Heightmaps";
+const STATUS_KEY: &'static str = "Status";
+
 #[derive(Debug)]
 pub struct Chunk {
+    pub status: ChunkStatus,
     pub data: Nbt
 }
 impl Chunk {
@@ -99,7 +106,15 @@ impl Chunk {
             };
         }
         let nbt = Nbt::read(&mut decompressed)?;
+        // This is not a nice way to do it and fails various safetys.
+        //  However: I don't care (right now)
+        // FIXME: Don't.
+        let _ = nbt.get_compound(HEIGHTMAPS_KEY)
+            .ok_or(MalformedChunk("Chunk has no heightmaps"))?;
         Ok(Chunk {
+            status: nbt.get_string(STATUS_KEY)
+                .ok_or(MalformedChunk("Chunk has no status"))?
+                .as_str().try_into()?,
             data: nbt
         })
     }
@@ -117,6 +132,12 @@ impl Chunk {
     fn get_sections(&self) -> Result<&Vec<NbtTag>, ChunkLoadError> {
         self.data.get_list("sections")
             .ok_or(MalformedChunk("Chunk has no sections list object"))
+    }
+
+    pub fn get_heightmap(&self, heightmap: HeightmapType) -> Option<Heightmap<'_>> {
+        self.data.get_compound(HEIGHTMAPS_KEY).unwrap()
+            .get_long_array(heightmap.get_identifier())
+            .map(|nbt| Heightmap::new(nbt))
     }
 }
 

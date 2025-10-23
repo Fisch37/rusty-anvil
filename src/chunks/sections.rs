@@ -3,7 +3,7 @@ use std::fmt::Display;
 use crab_nbt::{NbtCompound, NbtTag};
 
 use crate::chunks::iterators::BlockIter;
-use crate::chunks::utils::{calculate_bits_per_block, unpack_value};
+use crate::chunks::utils::{calculate_bits_per_block, get_index_offset_form, unpack_value};
 use crate::error::ChunkLoadError;
 use crate::error::ChunkLoadError::*;
 
@@ -62,11 +62,8 @@ impl<'a> SectionBlocks<'a> {
         }
         let i: u16 = x as u16 + 16*(z as u16) + 16*16*(y as u16);
         let bpb = calculate_bits_per_block(&self.palette);
-        let values_per_long = i64::BITS as u8 / bpb;
-
-        let index = i as usize / values_per_long as usize;
-        let offset = ((i * bpb as u16) % i64::BITS as u16) as u8;
-        &self.palette[unpack_value(self.data[index], offset, bpb)]
+        let (index, offset) = get_index_offset_form(i, bpb, i64::BITS as u8);
+        &self.palette[unpack_value::<usize>(self.data[index], offset, bpb)]
     }
 }
 impl<'a> IntoIterator for &'a SectionBlocks<'a> {
