@@ -54,20 +54,30 @@ fn get_chunk_index(chunk_x: u8, chunk_z: u8) -> usize {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+
     let file = File::open("/home/mint/rust-dev/rusty-anvil/r.0.-1.mca").unwrap();
     let mut region_file = RegionFileReader::create(file).unwrap();
     let chunk = region_file.get_chunk(0, 31).unwrap();
     chunk.data.write_to_writer(File::create("decompressed.nbt")?)?;
     
     let subchunk = chunk.get_subchunk(1).unwrap();
-    for (coord, block) in (&subchunk.blocks).into_iter().with_coordinates() {
-        if block.name == "minecraft:air" 
-            || block.name == "minecraft:dirt" 
-            || block.name == "minecraft:bedrock"
-            || block.name == "minecraft:grass_block" { continue; }
-        println!("{:02?}: {}", coord, block);
-    }
-
+    // for (coord, block) in (&subchunk.blocks).into_iter().with_coordinates() {
+    //     if block.name == "minecraft:air" 
+    //     || block.name == "minecraft:dirt" 
+    //     || block.name == "minecraft:bedrock"
+    //     || block.name == "minecraft:grass_block" { continue; }
+    //     println!("{:02?}: {}", coord, block);
+    // }
+    let matches = (&subchunk.blocks).into_iter().with_coordinates()
+        .all(|([x,y,z], block)| {
+            let b2 = subchunk.blocks.get_block(x, y, z);
+            if block != b2 {
+                println!("({x},{y},{z})Should be {block}, is {b2}");
+            }
+            block == b2
+        });
+    println!("Match {matches}");
+    
     // crate::chunks::sections::main(&subchunk.blocks);
 
     Ok(())

@@ -1,7 +1,7 @@
 use std::io::Read;
 
 use bytes::{Buf, Bytes};
-use crab_nbt::Nbt;
+use crab_nbt::{Nbt, NbtTag};
 use enum_utils::TryFromRepr;
 use flate2::bufread::{GzDecoder, ZlibDecoder};
 
@@ -11,6 +11,7 @@ use crate::chunks::sections::ChunkSection;
 
 pub mod sections;
 pub mod iterators;
+mod utils;
 
 #[derive(Debug, TryFromRepr)]
 #[repr(u8)]
@@ -63,8 +64,14 @@ pub struct Chunk {
 }
 impl Chunk {
     pub(crate) fn read(buf: &[u8]) -> Result<Self, ChunkLoadError> {
-        let size: u32 = u32::from_be_bytes(buf[0..4].try_into().unwrap()) - 1;
-        let compression_format = CompressionFormat::try_from(buf[4])
+        let size = buf.get(0..4)
+            .ok_or(ChunkLoadError::MalformedChunk("Header is too short, should be 4 bytes"))?
+            .try_into()
+            .map(|b| u32::from_be_bytes(b) - 1)
+            .unwrap(); // converting this &[u8] into a [u8;4] will never fail
+        let compression_format = buf.get(4)
+            .ok_or(ChunkLoadError::MalformedChunk("Chunk is too short for header (len<5)"))
+            .map(|x| CompressionFormat::try_from(*x))?
             .map_err(|_| ChunkLoadError::UnknownCompressionFormat(buf[4]))?;
 
         let mut decompressed: Box<dyn Buf>;
@@ -97,11 +104,35 @@ impl Chunk {
         })
     }
 
-    pub fn get_subchunk<'a>(&'a self, index: usize) -> Result<ChunkSection<'a>, ChunkLoadError> {
-        let section = self.data.get_list("sections")
-            .ok_or(MalformedChunk("Chunk has no sections list object"))?
-            .get(index).ok_or(MissingSection)?
-            .extract_compound().ok_or(MalformedChunk("Chunk section is not a compound"))?;
-        ChunkSection::new(section)
+    pub fn get_subchunks(&self) -> Result<SectionIterator<'_>, ChunkLoadError> {
+        self.get_sections().map(|sections| SectionIterator {
+            section_tags: sections.iter()
+        })
+    }
+
+    pub fn get_subchunk(&self, index: usize) -> Result<ChunkSection<'_>, ChunkLoadError> {
+        parse_chunk(self.get_sections()?.get(index).ok_or(MissingSection)?)
+    }
+
+    fn get_sections(&self) -> Result<&Vec<NbtTag>, ChunkLoadError> {
+        self.data.get_list("sections")
+            .ok_or(MalformedChunk("Chunk has no sections list object"))
+    }
+}
+
+fn parse_chunk<'a>(tag: &'a NbtTag) -> Result<ChunkSection<'a>, ChunkLoadError> {
+    tag.extract_compound()
+        .ok_or(MalformedChunk("Chunk section is not a compound"))
+        .and_then(|compound| ChunkSection::new(compound))
+}
+
+pub struct SectionIterator<'a> {
+    section_tags: std::slice::Iter<'a, NbtTag>
+}
+impl<'a> Iterator for SectionIterator<'a> {
+    type Item = Result<ChunkSection<'a>, ChunkLoadError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.section_tags.next().map(|tag| parse_chunk(tag))
     }
 }
