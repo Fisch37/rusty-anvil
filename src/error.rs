@@ -4,7 +4,7 @@ use std::{error::Error, fmt::Display};
 pub enum ChunkLoadError {
     MissingSection,
     EmptySection,
-    MalformedChunk(&'static str),
+    MalformedChunk(String),
     ChunkDoesNotExist,
     IOError(std::io::Error),
     UnknownCompressionFormat(u8),
@@ -26,3 +26,7 @@ impl Display for ChunkLoadError {
     }
 }
 impl Error for ChunkLoadError { }
+
+pub(crate) fn malformed_chunk_str(error: &str) -> impl Fn() -> ChunkLoadError {
+    || ChunkLoadError::MalformedChunk(error.to_owned())
+}

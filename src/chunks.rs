@@ -6,7 +6,7 @@ use enum_utils::TryFromRepr;
 use flate2::bufread::{GzDecoder, ZlibDecoder};
 
 use crate::chunks::heightmaps::{Heightmap, HeightmapType};
-use crate::error::ChunkLoadError;
+use crate::error::{malformed_chunk_str, ChunkLoadError};
 use crate::error::ChunkLoadError::*;
 use crate::chunks::sections::ChunkSection;
 
@@ -72,12 +72,12 @@ pub struct Chunk {
 impl Chunk {
     pub(crate) fn read(buf: &[u8]) -> Result<Self, ChunkLoadError> {
         let size = buf.get(0..4)
-            .ok_or(ChunkLoadError::MalformedChunk("Header is too short, should be 4 bytes"))?
+            .ok_or_else(malformed_chunk_str("Header is too short, should be 4 bytes"))?
             .try_into()
             .map(|b| u32::from_be_bytes(b) - 1)
             .unwrap(); // converting this &[u8] into a [u8;4] will never fail
         let compression_format = buf.get(4)
-            .ok_or(ChunkLoadError::MalformedChunk("Chunk is too short for header (len<5)"))
+            .ok_or_else(malformed_chunk_str("Chunk is too short for header (len<5)"))
             .map(|x| CompressionFormat::try_from(*x))?
             .map_err(|_| ChunkLoadError::UnknownCompressionFormat(buf[4]))?;
 
@@ -110,10 +110,10 @@ impl Chunk {
         //  However: I don't care (right now)
         // FIXME: Don't.
         let _ = nbt.get_compound(HEIGHTMAPS_KEY)
-            .ok_or(MalformedChunk("Chunk has no heightmaps"))?;
+            .ok_or_else(malformed_chunk_str("Chunk has no heightmaps"))?;
         Ok(Chunk {
             status: nbt.get_string(STATUS_KEY)
-                .ok_or(MalformedChunk("Chunk has no status"))?
+                .ok_or_else(malformed_chunk_str("Chunk has no status"))?
                 .as_str().try_into()?,
             data: nbt
         })
@@ -131,7 +131,7 @@ impl Chunk {
 
     fn get_sections(&self) -> Result<&Vec<NbtTag>, ChunkLoadError> {
         self.data.get_list("sections")
-            .ok_or(MalformedChunk("Chunk has no sections list object"))
+            .ok_or_else(malformed_chunk_str("Chunk has no sections list object"))
     }
 
     pub fn get_heightmap(&self, heightmap: HeightmapType) -> Option<Heightmap<'_>> {
@@ -143,7 +143,7 @@ impl Chunk {
 
 fn parse_chunk<'a>(tag: &'a NbtTag) -> Result<ChunkSection<'a>, ChunkLoadError> {
     tag.extract_compound()
-        .ok_or(MalformedChunk("Chunk section is not a compound"))
+        .ok_or_else(malformed_chunk_str("Chunk section is not a compound"))
         .and_then(|compound| ChunkSection::new(compound))
 }
 

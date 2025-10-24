@@ -4,7 +4,7 @@ use crab_nbt::{NbtCompound, NbtTag};
 
 use crate::chunks::iterators::BlockIter;
 use crate::chunks::utils::{calculate_bits_per_block, get_index_offset_form, unpack_value};
-use crate::error::ChunkLoadError;
+use crate::error::{malformed_chunk_str, ChunkLoadError};
 use crate::error::ChunkLoadError::*;
 
 static EMPTY_VEC_I64: Vec<i64> = Vec::new();
@@ -18,7 +18,7 @@ pub struct ChunkSection<'a> {
 impl<'a> ChunkSection<'a> {
     pub(crate) fn new(compound: &'a NbtCompound) -> Result<Self, ChunkLoadError> {
         Ok(Self {
-            y: compound.get_byte("Y").ok_or(MalformedChunk("Section missing Y value"))?,
+            y: compound.get_byte("Y").ok_or_else(malformed_chunk_str("Section missing Y value"))?,
             blocks: SectionBlocks::new(compound.get_compound("block_states")
                 .ok_or(EmptySection)?)?
         })
@@ -38,9 +38,9 @@ impl<'a> SectionBlocks<'a> {
                 let mut palette = Vec::with_capacity(palette_raw.len());
                 for raw in palette_raw {
                     let compound = raw.extract_compound()
-                        .ok_or(MalformedChunk("Palette entry is not a compound"))?;
+                        .ok_or_else(malformed_chunk_str("Palette entry is not a compound"))?;
                     palette.push(BlockState::new(compound)
-                        .ok_or(MalformedChunk("Palette entry is not a valid block state"))?)
+                        .ok_or_else(malformed_chunk_str("Palette entry is not a valid block state"))?)
                 }
                 palette
             }
