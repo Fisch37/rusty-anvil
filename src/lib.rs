@@ -9,6 +9,7 @@ pub mod metadata;
 const TABLE_SIZE: usize = 1024;
 const ENTRY_SIZE: usize = 4;
 const LOCATION_SIZE_FACTOR: usize = 4096;
+const CHUNKS_PER_AXIS: u8 = 32;
 
 pub struct RegionFileReader<R: Read + Seek> {
     reader: R,
@@ -47,8 +48,41 @@ impl<R: Read + Seek> RegionFileReader<R> {
 
         Ok(Chunk::read(&buf)?)
     }
+
+    pub fn get_chunks(&mut self) -> impl Iterator<Item = ([u8; 2], Option<Result<Chunk, ChunkLoadError>>)> {
+        ChunkIterator { x: 0, z: 0, reader: self }
+    }
 }
 
 fn get_chunk_index(chunk_x: u8, chunk_z: u8) -> usize {
     chunk_z as usize * 32 + chunk_x as usize
+}
+
+pub struct ChunkIterator<'a, R: Read + Seek> {
+    x: u8, z: u8,
+    reader: &'a mut RegionFileReader<R>
+}
+impl<'a, R: Read + Seek> Iterator for ChunkIterator<'a, R> {
+    type Item = ([u8; 2], Option<Result<Chunk, ChunkLoadError>>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let result = if self.z >= CHUNKS_PER_AXIS {
+            None
+        } else {
+            Some((
+                [self.x, self.z],
+                if self.reader.get_timestamp(self.x, self.z).unwrap() == 0 {
+                    None
+                } else {
+                    Some(self.reader.get_chunk(self.x, self.z))
+                }
+            ))
+        };
+        self.x += 1;
+        if self.x >= CHUNKS_PER_AXIS {
+            self.x = 0;
+            self.z += 1;
+        }
+        result
+    }
 }
