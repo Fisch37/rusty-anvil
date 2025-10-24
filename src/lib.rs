@@ -25,8 +25,13 @@ impl<R: Read + Seek> RegionFileReader<R> {
         })
     }
 
-    pub fn get_chunk_metadata(&self, chunk_x: u8, chunk_z: u8) -> ChunkMetadata {
-        ChunkMetadata { last_updated: self.timestamp_table[get_chunk_index(chunk_x, chunk_z)] }
+    pub fn get_timestamps(&self) -> &TimestampTable {
+        &self.timestamp_table
+    }
+
+    pub fn get_timestamp(&self, chunk_x: u8, chunk_z: u8) -> Option<ChunkTimestamp> {
+        self.get_timestamps().as_ref()
+            .get(get_chunk_index(chunk_x, chunk_z)).copied()
     }
 
     pub fn get_chunk(&mut self, chunk_x: u8, chunk_z: u8) -> Result<Chunk, ChunkLoadError> {
@@ -42,12 +47,6 @@ impl<R: Read + Seek> RegionFileReader<R> {
 
         Ok(Chunk::read(&buf)?)
     }
-}
-
-pub struct ChunkMetadata {
-    /// The unix timestamp of the last time this chunk was updated.
-    /// 0, if the chunk has not been generated.
-    last_updated: ChunkTimestamp,
 }
 
 fn get_chunk_index(chunk_x: u8, chunk_z: u8) -> usize {

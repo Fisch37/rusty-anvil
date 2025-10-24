@@ -1,4 +1,4 @@
-use std::{io::Read, ops::Index};
+use std::{io::Read, ops::{Deref, Index}};
 
 use crate::{ENTRY_SIZE, LOCATION_SIZE_FACTOR, TABLE_SIZE};
 
@@ -59,7 +59,7 @@ impl Index<usize> for LocationTable {
 }
 
 pub type ChunkTimestamp = i32;
-pub(crate) struct TimestampTable {
+pub struct TimestampTable {
     internal: Vec<ChunkTimestamp>
 }
 impl TimestampTable {
@@ -81,5 +81,22 @@ impl Index<usize> for TimestampTable {
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.internal[index]
+    }
+}
+impl From<TimestampTable> for Vec<ChunkTimestamp> {
+    fn from(value: TimestampTable) -> Self {
+        value.internal
+    }
+}
+impl AsRef<Vec<ChunkTimestamp>> for TimestampTable {
+    fn as_ref(&self) -> &Vec<ChunkTimestamp> {
+        self.deref()
+    }
+}
+impl Deref for TimestampTable {
+    type Target = Vec<ChunkTimestamp>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.internal
     }
 }
