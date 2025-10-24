@@ -25,7 +25,7 @@ pub enum CompressionFormat {
     // There could be Custom = 127 here, but we couldn't support it anyway
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ChunkStatus {
     Empty,
     StructureStarts, StructureReferences,
@@ -42,21 +42,21 @@ impl TryFrom<&str> for ChunkStatus {
     type Error = ChunkLoadError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Ok(match value {
-            "minecraft:empty" => ChunkStatus::Empty,
-            "minecraft:structure_starts" => ChunkStatus::StructureStarts,
-            "minecraft:structure_references" => ChunkStatus::StructureReferences,
-            "minecraft:biomes" => ChunkStatus::Biomes,
-            "minecraft:noise" => ChunkStatus::Noise,
-            "minecraft:surface" => ChunkStatus::Surface,
-            "minecraft:carvers" => ChunkStatus::Carvers,
-            "minecraft:liquid_carvers" => ChunkStatus::LiquidCarvers,
-            "minecraft:features" => ChunkStatus::Features,
-            "minecraft:light" => ChunkStatus::Light,
-            "minecraft:initialize_light" => ChunkStatus::InitializeLight,
-            "minecraft:spawn" => ChunkStatus::Spawn,
-            "minecraft:full" => ChunkStatus::Full,
-            _ => return Err(MalformedChunk("Chunk has unexpected status"))
+        Ok(match value.strip_prefix("minecraft:").unwrap_or(value) {
+            "empty" => ChunkStatus::Empty,
+            "structure_starts" => ChunkStatus::StructureStarts,
+            "structure_references" => ChunkStatus::StructureReferences,
+            "biomes" => ChunkStatus::Biomes,
+            "noise" => ChunkStatus::Noise,
+            "surface" => ChunkStatus::Surface,
+            "carvers" => ChunkStatus::Carvers,
+            "liquid_carvers" => ChunkStatus::LiquidCarvers,
+            "features" => ChunkStatus::Features,
+            "light" => ChunkStatus::Light,
+            "initialize_light" => ChunkStatus::InitializeLight,
+            "spawn" => ChunkStatus::Spawn,
+            "full" => ChunkStatus::Full,
+            s => return Err(MalformedChunk(format!("Chunk has unexpected status {s})")))
         })
     }
 }
